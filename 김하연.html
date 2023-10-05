@@ -1,0 +1,568 @@
+<html>
+  <head>
+    <script src="web3.min.js"></script>
+    <script type="text/javascript">
+      var accounts = null;
+      var randomDrawingContractInstance = null;
+      let isOwner = false;
+
+      window.addEventListener("load", randomDrawing);
+
+      async function randomDrawing() {
+        if (window.ethereum) {
+          window.accounts = await ethereum.request({
+            method: "eth_requestAccounts",
+          });
+
+          window.web3 = new Web3(window.ethereum);
+
+          const abi = [
+            {
+              inputs: [
+                {
+                  internalType: "string",
+                  name: "productName",
+                  type: "string",
+                },
+                {
+                  internalType: "uint256",
+                  name: "price",
+                  type: "uint256",
+                },
+                {
+                  internalType: "string",
+                  name: "imgLink",
+                  type: "string",
+                },
+              ],
+              name: "addProduct",
+              outputs: [
+                {
+                  internalType: "bool",
+                  name: "",
+                  type: "bool",
+                },
+              ],
+              stateMutability: "nonpayable",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "applyRandom",
+              outputs: [],
+              stateMutability: "payable",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "kill",
+              outputs: [],
+              stateMutability: "nonpayable",
+              type: "function",
+            },
+            {
+              inputs: [],
+              stateMutability: "nonpayable",
+              type: "constructor",
+            },
+            {
+              inputs: [],
+              name: "checkOwner",
+              outputs: [
+                {
+                  internalType: "bool",
+                  name: "",
+                  type: "bool",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "getBalance",
+              outputs: [
+                {
+                  internalType: "uint256",
+                  name: "",
+                  type: "uint256",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "highPriceProduct",
+              outputs: [
+                {
+                  internalType: "string",
+                  name: "productName",
+                  type: "string",
+                },
+                {
+                  internalType: "uint256",
+                  name: "price",
+                  type: "uint256",
+                },
+                {
+                  internalType: "string",
+                  name: "imgLink",
+                  type: "string",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "numParticipants",
+              outputs: [
+                {
+                  internalType: "uint256",
+                  name: "",
+                  type: "uint256",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "numProducts",
+              outputs: [
+                {
+                  internalType: "uint256",
+                  name: "",
+                  type: "uint256",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "owner",
+              outputs: [
+                {
+                  internalType: "address",
+                  name: "",
+                  type: "address",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [
+                {
+                  internalType: "uint256",
+                  name: "",
+                  type: "uint256",
+                },
+              ],
+              name: "products",
+              outputs: [
+                {
+                  internalType: "string",
+                  name: "productName",
+                  type: "string",
+                },
+                {
+                  internalType: "uint256",
+                  name: "price",
+                  type: "uint256",
+                },
+                {
+                  internalType: "string",
+                  name: "imgLink",
+                  type: "string",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "randomIndex",
+              outputs: [
+                {
+                  internalType: "uint256",
+                  name: "",
+                  type: "uint256",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+            {
+              inputs: [],
+              name: "totalParticipantInterest",
+              outputs: [
+                {
+                  internalType: "int256",
+                  name: "",
+                  type: "int256",
+                },
+              ],
+              stateMutability: "view",
+              type: "function",
+            },
+          ];
+          var address = "0x99353C4319F816777bbe45745B7d103E0C3d2851"; // address of randomDrawing
+          randomDrawingContractInstance = await new window.web3.eth.Contract(
+            abi,
+            address
+          );
+          // Legacy dapp browsers...
+        } else if (window.web3) {
+          window.web3 = new Web3(web3.currentProvider);
+          // Acccounts always exposed
+          //    web3.eth.sendTransaction({/* ... */});
+        }
+        // Non-dapp browsers...
+        else {
+          console.log(
+            "Non-Ethereum browser detected. You should consider trying MetaMask!"
+          );
+          window.web3 = null;
+        }
+        initialize();
+      }
+
+      function initialize() {
+        getContractInfo();
+        let ownerBtn = document.getElementById("owner");
+        ownerBtn.addEventListener("click", clickOwnerBtn);
+        let customerBtn = document.getElementById("customer");
+        customerBtn.addEventListener("click", clickCustomerBtn);
+        let addProductBtn = document.getElementById("addProduct");
+        addProductBtn.addEventListener("click", clickAddProduct);
+        let killBtn = document.getElementById("kill");
+        killBtn.addEventListener("click", clickKillBtn);
+        let applyRandomBtn = document.getElementById("applyRandom");
+        applyRandomBtn.addEventListener("click", clickApplyRandom);
+      }
+
+      async function getContractInfo() {
+        try {
+          let numParticipantsSpan = document.getElementById("numParticipants");
+          let balanceSpan = document.getElementById("contractBalance");
+          let totalParticipantInterestSpan = document.getElementById(
+            "totalParticipantInterest"
+          );
+          let totalParticipantInterestSpan2 = document.getElementById(
+            "totalParticipantInterest2"
+          );
+          let numProductsSpan = document.getElementById("numProducts");
+          let numProductsSpan2 = document.getElementById("numProducts2");
+          let highPriceProductNameSpan = document.getElementById(
+            "highPriceProductName"
+          );
+          let highPriceProductPriceSpan = document.getElementById(
+            "highPriceProductPrice"
+          );
+          let highPriceProductImgImg = document.getElementById(
+            "highPriceProductImg"
+          );
+          let highPriceProductNameSpan2 = document.getElementById(
+            "highPriceProductName2"
+          );
+          let highPriceProductPriceSpan2 = document.getElementById(
+            "highPriceProductPrice2"
+          );
+          let highPriceProductImgImg2 = document.getElementById(
+            "highPriceProductImg2"
+          );
+
+          isOwner = await randomDrawingContractInstance.methods
+            .checkOwner()
+            .call({ from: accounts[0] });
+          let numParticipants = await randomDrawingContractInstance.methods
+            .numParticipants()
+            .call();
+          let balance;
+          if (isOwner) {
+            balance = await randomDrawingContractInstance.methods
+              .getBalance()
+              .call({ from: accounts[0] });
+          }
+          let totalParticipantInterest =
+            await randomDrawingContractInstance.methods
+              .totalParticipantInterest()
+              .call();
+          let numProducts = await randomDrawingContractInstance.methods
+            .numProducts()
+            .call();
+          let highPriceProduct = await randomDrawingContractInstance.methods
+            .highPriceProduct()
+            .call();
+
+          numParticipantsSpan.innerText = numParticipants;
+          balanceSpan.innerText = balance || "-";
+          totalParticipantInterestSpan.innerText = totalParticipantInterest;
+          totalParticipantInterestSpan2.innerText = totalParticipantInterest;
+          numProductsSpan.innerText = numProducts;
+          numProductsSpan2.innerText = numProducts;
+          highPriceProductNameSpan.innerText =
+            highPriceProduct.productName === "nothing"
+              ? "없음"
+              : highPriceProduct.productName;
+          highPriceProductPriceSpan.innerHTML = highPriceProduct.price;
+          highPriceProductImg.src = highPriceProduct.imgLink;
+          highPriceProductNameSpan2.innerText =
+            highPriceProduct.productName === "nothing"
+              ? "없음"
+              : highPriceProduct.productName;
+          highPriceProductPriceSpan2.innerHTML = highPriceProduct.price;
+          highPriceProductImg2.src = highPriceProduct.imgLink;
+        } catch (err) {
+          alert(err);
+        }
+      }
+
+      async function clickOwnerBtn() {
+        try {
+          let ownerDiv = document.getElementById("ownerDiv");
+          let customerDiv = document.getElementById("customerDiv");
+
+          if (isOwner) {
+            ownerDiv.style.display = "block";
+            customerDiv.style.display = "none";
+          } else {
+            ownerDiv.style.display = "none";
+            customerDiv.style.display = "block";
+            alert("관리자가 아닙니다.");
+          }
+        } catch (err) {
+          alert(err);
+        }
+      }
+
+      async function clickCustomerBtn() {
+        let ownerDiv = document.getElementById("ownerDiv");
+        let customerDiv = document.getElementById("customerDiv");
+        let totalParticipantInterestSpan = document.getElementById(
+          "totalParticipantInterest"
+        );
+
+        let totalParticipantInterest =
+          await randomDrawingContractInstance.methods
+            .totalParticipantInterest()
+            .call();
+
+        ownerDiv.style.display = "none";
+        customerDiv.style.display = "block";
+        totalParticipantInterestSpan.innerText = totalParticipantInterest;
+      }
+
+      async function clickAddProduct() {
+        let productNameInput = document.getElementById("productName");
+        let priceInput = document.getElementById("price");
+        let imgLinkInput = document.getElementById("imgLink");
+
+        if (
+          !priceInput.value ||
+          !productNameInput.value ||
+          !imgLinkInput.value
+        ) {
+          alert("모든 값을 입력해주세요.");
+          return;
+        }
+        if (priceInput.value < 8000000) {
+          alert("8000000 Wei 이상의 상품만 추가 가능합니다.");
+          return;
+        }
+
+        try {
+          let data = await randomDrawingContractInstance.methods
+            .addProduct(
+              productNameInput.value,
+              parseInt(priceInput.value),
+              imgLinkInput.value
+            )
+            .send({ from: accounts[0] });
+          getContractInfo();
+          alert("상품 추가했습니다.");
+        } catch (err) {
+          alert(err);
+        }
+      }
+
+      async function clickKillBtn() {
+        try {
+          let value = await randomDrawingContractInstance.methods
+            .kill()
+            .send({ from: accounts[0] });
+          alert("complete kill");
+        } catch (error) {
+          alert(error);
+        }
+      }
+
+      async function clickApplyRandom() {
+        try {
+          let numProducts = await randomDrawingContractInstance.methods
+            .numProducts()
+            .call();
+          if (!numProducts || parseInt(numProducts) === 0) {
+            alert("아직 상품이 준비되지 않았습니다. 나중에 시도해주세요!");
+            return;
+          } else {
+            let drawProductInfo = document.getElementById("drawProductInfo");
+            let randomProductImg = document.getElementById("randomProductImg");
+            let randomProductName =
+              document.getElementById("randomProductName");
+            let randomProductPrice =
+              document.getElementById("randomProductPrice");
+
+            await randomDrawingContractInstance.methods
+              .applyRandom()
+              .send({ from: accounts[0], value: 10000000 });
+
+            let randomProductIdx = await randomDrawingContractInstance.methods
+              .randomIndex()
+              .call();
+            let randomProduct = await randomDrawingContractInstance.methods
+              .products(randomProductIdx)
+              .call();
+
+            drawProductInfo.style.display = "block";
+            randomProductImg.src = randomProduct.imgLink;
+            randomProductName.innerText = randomProduct.productName;
+            randomProductPrice.innerText = randomProduct.price;
+
+            getContractInfo();
+            alert("뽑았습니다! 확인해보세요~!");
+          }
+        } catch (err) {
+          alert(err);
+        }
+      }
+    </script>
+    <title>김하연</title>
+  </head>
+  <body style="font-family: Arial, Helvetica, sans-serif">
+    <h1>Project Name: 랜덤 뽑기</h1>
+    <h4>Team Name: 김하연(20191581)</h4>
+    <br />
+    <a href="https://youtu.be/fHzbyHtxT4E" target="_blank">
+      랜덤 뽑기 시연 영상</a
+    >
+    <br />
+    <br />
+    <hr />
+    <div style="display: flex; flex-direction: row; gap: 10px">
+      <button id="owner" style="font-size: large">관리자 메뉴</button
+      ><button
+        id="customer"
+        style="font-size: large; background-color: blanchedalmond"
+      >
+        고객 메뉴
+      </button>
+    </div>
+    <div id="ownerDiv" style="display: none">
+      <hr />
+      <h3>스마트 계약 상황</h3>
+      총 참여자 : <span id="numParticipants">-</span>명<br />
+      스마트 계약 잔액 : <span id="contractBalance">-</span> Wei<br />
+      <span
+        >지금까지 참여자들은 총
+        <span id="totalParticipantInterest">0</span> Wei를 벌었습니다!</span
+      >
+      <button id="kill">끝내기</button>
+      <h3>상품 관리</h3>
+      총 상품 개수: <span id="numProducts">-</span> 개<br />
+      <div style="border: 1px solid gray; padding: 10px; margin-top: 20px">
+        <h4>최고가 상품</h4>
+        상품명: <span id="highPriceProductName">-</span> <br />
+        상품 가격: <span id="highPriceProductPrice">-</span> Wei <br />
+        상품 이미지: <br />
+        <img
+          id="highPriceProductImg"
+          alt="상품 이미지"
+          width="50%"
+          height="auto"
+        />
+      </div>
+      <div style="border: 1px solid gray; padding: 10px; margin-top: 20px">
+        <h4>상품 추가</h4>
+        상품명:
+        <br />
+        <input id="productName" placeholder="상품 이름" />
+        <br />
+        상품 가격
+        <br />
+        <input
+          type="number"
+          id="price"
+          placeholder="상품 가격"
+          min="8000000"
+          value="8000000"
+          step="1000000"
+        />
+        Wei <br />(8000000 Wei 이상만 가능) <br />
+        <br />
+        상품 이미지 링크
+        <br />
+        <input id="imgLink" placeholder="이미지 링크" />
+        <button id="addProduct">추가</button>
+      </div>
+    </div>
+    <div id="customerDiv" style="display: block">
+      <hr />
+      <span
+        >지금까지 참여자들은 총
+        <span id="totalParticipantInterest2">0</span> Wei를 벌었습니다!</span
+      ><br />
+      총 상품 개수: <span id="numProducts2">-</span> 개<br />
+      <br />
+      <div style="border: 1px solid gray; padding: 10px">
+        <h3>최고가 상품</h3>
+        상품명: <span id="highPriceProductName2">-</span> <br />
+        상품 가격: <span id="highPriceProductPrice2">-</span> Wei <br />
+        상품 이미지: <br />
+        <img
+          id="highPriceProductImg2"
+          alt="상품 이미지"
+          width="50%"
+          height="auto"
+        />
+      </div>
+      <br />
+
+      <button
+        id="applyRandom"
+        style="
+          font-size: larger;
+          font-weight: bold;
+          background-color: blanchedalmond;
+        "
+      >
+        10000000 Wei 넣고 뽑기</button
+      ><br />
+      <br />
+      <div
+        id="drawProductInfo"
+        style="
+          display: none;
+          border: 1px solid gray;
+          padding: 10px;
+          background-color: blanchedalmond;
+        "
+      >
+        <h3>당첨된 상품:</h3>
+        <br />
+        <img
+          id="randomProductImg"
+          alt="상품 이미지"
+          width="50%"
+          height="auto"
+          src="https://dummyimage.com/600x400/000/cccfff&text=Please+Draw"
+        /><br /><br />
+        상품명: <span id="randomProductName">-</span><br />
+        상품 가격: <span id="randomProductPrice">-</span> Wei<br />
+      </div>
+    </div>
+  </body>
+</html>
